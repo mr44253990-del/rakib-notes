@@ -9,5 +9,9 @@ data class Note(
     val title: String,
     val content: String,
     val timestamp: Long = System.currentTimeMillis(),
-    val reminderTime: Long? = null
+    val reminderTime: Long? = null,
+    val category: String = "General",
+    val color: Int = 0xFFFFFFFF.toInt(),
+    val isPinned: Boolean = false,
+    val isArchived: Boolean = false
 )

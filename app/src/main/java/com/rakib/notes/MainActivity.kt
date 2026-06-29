@@ -51,7 +51,31 @@ fun AppNavigation() {
             })
         }
         composable("home") {
-            HomeScreen()
+            HomeScreen(
+                onNoteClick = { note ->
+                    val id = note?.id ?: -1
+                    navController.navigate("editor/$id")
+                },
+                onSettingsClick = {
+                    navController.navigate("settings")
+                }
+            )
+        }
+        composable("settings") {
+            SettingsScreen(onBack = { navController.popBackStack() })
+        }
+        composable("editor/{noteId}") { backStackEntry ->
+            val noteId = backStackEntry.arguments?.getString("noteId")?.toIntOrNull() ?: -1
+            // In a real app, we'd fetch the note from the DB using a ViewModel
+            // For simplicity in this demo flow:
+            NoteEditorScreen(
+                note = null, // Logic to fetch by ID would go here
+                onSave = { 
+                    // Save logic via ViewModel
+                    navController.popBackStack() 
+                },
+                onBack = { navController.popBackStack() }
+            )
         }
     }
 }

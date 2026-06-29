@@ -1,82 +1,108 @@
 package com.rakib.notes.ui.home
 
+import androidx.compose.animation.*
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.rakib.notes.data.AppDatabase
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rakib.notes.data.Note
-import kotlinx.coroutines.launch
+import com.rakib.notes.ui.notes.NoteViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun HomeScreen() {
-    val context = LocalContext.current
-    val db = AppDatabase.getDatabase(context)
-    val notes by db.noteDao().getAllNotes().collectAsState(initial = emptyList())
-    val scope = rememberCoroutineScope()
-    
-    var showAddDialog by remember { mutableStateOf(false) }
-    var noteTitle by remember { mutableStateOf("") }
-    var noteContent by remember { mutableStateOf("") }
+fun HomeScreen(
+    onNoteClick: (Note?) -> Unit,
+    onSettingsClick: () -> Unit,
+    viewModel: NoteViewModel = viewModel()
+) {
+    val notes by viewModel.notes.collectAsState()
+    val searchQuery by viewModel.searchQuery.collectAsState()
+    var isSearchActive by remember { mutableStateOf(false) }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Rakib Notes") }) },
-        floatingActionButton = {
-            FloatingActionButton(onClick = { showAddDialog = true }) {
-                Icon(Icons.Default.Add, contentDescription = "Add Note")
+        topBar = {
+            if (isSearchActive) {
+                SearchBar(
+                    query = searchQuery,
+                    onQueryChange = { viewModel.setSearchQuery(it) },
+                    onSearch = { isSearchActive = false },
+                    active = true,
+                    onActiveChange = { isSearchActive = it },
+                    placeholder = { Text("Search notes...") },
+                    leadingIcon = { IconButton(onClick = { isSearchActive = false }) { Icon(Icons.Default.ArrowBack, null) } },
+                    trailingIcon = { if (searchQuery.isNotEmpty()) IconButton(onClick = { viewModel.setSearchQuery("") }) { Icon(Icons.Default.Clear, null) } },
+                    modifier = Modifier.fillMaxWidth()
+                ) {}
+            } else {
+                TopAppBar(
+                    title = { Text("Rakib Notes") },
+                    actions = {
+                        IconButton(onClick = { isSearchActive = true }) { Icon(Icons.Default.Search, "Search") }
+                        IconButton(onClick = onSettingsClick) { Icon(Icons.Default.Settings, "Settings") }
+                    }
+                )
             }
+        },
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                onClick = { onNoteClick(null) },
+                icon = { Icon(Icons.Default.Add, null) },
+                text = { Text("New Note") }
+            )
         }
     ) { padding ->
-        LazyColumn(modifier = Modifier.padding(padding).fillMaxSize()) {
-            items(notes) { note ->
-                NoteItem(note) {
-                    scope.launch { db.noteDao().deleteNote(note) }
+        Column(modifier = Modifier.padding(padding)) {
+            LazyVerticalStaggeredGrid(
+                columns = StaggeredGridCells.Fixed(2),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalItemSpacing = 8.dp
+            ) {
+                items(notes, key = { it.id }) { note ->
+                    NoteCard(
+                        note = note,
+                        onClick = { onNoteClick(note) },
+                        onPinClick = { viewModel.togglePin(note) }
+                    )
                 }
             }
-        }
-
-        if (showAddDialog) {
-            AlertDialog(
-                onDismissRequest = { showAddDialog = false },
-                title = { Text("New Note") },
-                text = {
-                    Column {
-                        TextField(value = noteTitle, onValueChange = { noteTitle = it }, label = { Text("Title") })
-                        Spacer(modifier = Modifier.height(8.dp))
-                        TextField(value = noteContent, onValueChange = { noteContent = it }, label = { Text("Content") })
-                    }
-                },
-                confirmButton = {
-                    Button(onClick = {
-                        scope.launch {
-                            db.noteDao().insertNote(Note(title = noteTitle, content = noteContent))
-                            showAddDialog = false
-                            noteTitle = ""
-                            noteContent = ""
-                        }
-                    }) { Text("Save") }
-                }
-            )
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NoteItem(note: Note, onDelete: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth().padding(8.dp)) {
+fun NoteCard(note: Note, onClick: () -> Unit, onPinClick: () -> Unit) {
+    Card(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color(note.color))
+    ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(note.title, style = MaterialTheme.typography.titleLarge)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(note.content)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(note.title, style = MaterialTheme.typography.titleMedium, maxLines = 1)
+                if (note.isPinned) {
+                    Icon(Icons.Default.PushPin, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                }
+            }
             Spacer(modifier = Modifier.height(8.dp))
-            Button(onClick = onDelete) { Text("Delete") }
+            Text(note.content, style = MaterialTheme.typography.bodyMedium, maxLines = 8)
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = note.category,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.outline
+            )
         }
     }
 }
